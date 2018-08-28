@@ -2,7 +2,7 @@
 
 const config = {
   app: {
-    port: 8080,
+    port: 8081,
   },
   broadcast: { //defaults
     enabled: false,

@@ -1,6 +1,8 @@
 import React from 'react';
 import WebSocket from 'ws';
 
+import _ from 'lodash';
+
 import Message from './Message';
 
 import { slide as Menu } from 'react-burger-menu';
@@ -33,7 +35,6 @@ class Main extends React.Component {
     if (this.props && this.state) {
       if (!_.isEqual(this.props, nextProps) || !_.isEqual(this.state, nextState)) {
         this.state.poseNet.updatePoseNet(nextState.poseNetProps, nextState.media);
-        // console.log('shouldComponentUpdate:', true);
         return true;
       }
       return false;
@@ -164,11 +165,6 @@ class Main extends React.Component {
   }
 
   render() {
-
-    let mediaList = <DatBoolean label="Enabled"  path='broadcast.enabled' />;
-    if (this.state.media.cameras.length > 0) {
-      mediaList = <DatSelect label="Camera" path='camera' options={this.state.media.cameras} />;
-    }
     return (
       <div className="app">
         <div id="poseNetPreview">
@@ -179,7 +175,7 @@ class Main extends React.Component {
         </div>
         <Menu width={ '280px' } right customBurgerIcon={ <img src="/images/gear.png" /> }>
           <DatGui data={this.state.media} onUpdate={this.updateCamera.bind(this)}>
-            { mediaList }
+            { (this.state.media.cameras.length > 0) ? <DatSelect label="Camera" path='camera' options={this.state.media.cameras} /> : <DatBoolean label="Enabled"  path='broadcast.enabled' /> }
           </DatGui>
           <DatGui data={this.state.broadcast} onUpdate={this.updateBroadcast.bind(this)}>
             <DatFolder title='Broadcast'>

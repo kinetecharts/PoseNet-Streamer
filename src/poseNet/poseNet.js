@@ -30,9 +30,16 @@ class PoseNet {
   updatePoseNet(newProps, newMedia) {
     this.guiState = newProps;
     this.media = newMedia;
+    this.init();
   }
 
   init() {
+    if (window.stream) {
+      window.stream.getTracks().forEach(function(track) {
+        track.stop();
+      });
+    }
+
     this.preview = document.getElementById('preview');
     this.predictions = document.getElementById('predictions');
     this.video = document.createElement('video');
@@ -41,7 +48,17 @@ class PoseNet {
       this.posenet = p;
       this.color = '#' + ((1<<24)*Math.random()|0).toString(16);
 
-      navigator.mediaDevices.getUserMedia({ video: true, audio: false }).then((stream) => {
+      navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          deviceId: {
+            exact: _.filter(this.media.devices, (device) => {
+              return device.label === this.media.camera;
+            })[0].deviceId,
+          },
+        },
+      }).then((stream) => {
+        window.stream = stream;
         this.video.srcObject = stream;
       
         this.previewContext = this.preview.getContext('2d');
@@ -75,7 +92,7 @@ class PoseNet {
   flipCanvas(video, ctx, flipH, flipV, width, height) {
       const scaleH = flipH ? -1 : 1, // Set horizontal scale to -1 if flip horizontal
           scaleV = flipV ? -1 : 1, // Set verical scale to -1 if flip vertical
-          posX = flipH ? width * -1 : 0, // Set x position to -100% if flip horizontal 
+          posX = flipH ? width * -1 : 0, // Set x position to -100% if flip horizontal
           posY = flipV ? height * -1 : 0; // Set y position to -100% if flip vertical
       ctx.save(); // Save the current state
       ctx.scale(scaleH, scaleV); // Set scale to flip the image
