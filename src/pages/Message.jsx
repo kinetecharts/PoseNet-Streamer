@@ -6,7 +6,7 @@ class Message extends React.Component {
   }
   render() {
     return (
-      <h6>Status: {this.props.message}</h6>
+      <h6>{this.props.message}</h6>
     );
   }
 }

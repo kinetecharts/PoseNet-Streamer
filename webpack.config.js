@@ -1,6 +1,8 @@
 const { resolve } = require('path');
 const webpack = require('webpack');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const WriteFilePlugin = require('write-file-webpack-plugin');
+const fs = require('fs');
 
 const config = require('./server/config.js');
 
@@ -25,7 +27,7 @@ module.exports = {
     // the entry point of our app
   ],
   output: {
-    filename: 'bundle.js',
+    filename: 'js/bundle.js',
     // the output bundle
 
     path: resolve(__dirname, 'dist'),
@@ -50,19 +52,31 @@ module.exports = {
     public: 'http://0.0.0.0',
     port: config.app.port,
     disableHostCheck: true,
+
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+      "Access-Control-Allow-Headers": "X-Requested-With, content-type, Authorization"
+    },
+    https: {
+      key: fs.readFileSync('./certs/TCB-MBP.local-key.pem', 'utf8'),
+      cert: fs.readFileSync('./certs/TCB-MBP.local.pem', 'utf8'),
+      ca: fs.readFileSync('/Users/jerknose/Library/Application Support/mkcert/rootCA.pem'),
+      // key: fs.readFileSync('./certs/private.key', 'utf8'),
+      // cert: fs.readFileSync('./certs/private.crt', 'utf8'),
+      // ca: fs.readFileSync('./certs/private.pem', 'utf8'),
+    }
+
+    
   },
   module: {
     rules: [
-
       {
         test: /\.(js|jsx)$/,
         exclude: /(node_modules|bower_components)/,
         use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['env'],
-          },
-        },
+          loader: "babel-loader"
+        }
       },
       {
         test: /\.css$/,
@@ -97,27 +111,41 @@ module.exports = {
   resolve: {
     extensions: ['.js', '.jsx', '.css'],
   },
+  optimization: {
+    splitChunks: {
+      chunks: 'async',
+      minSize: 30000,
+      maxSize: 0,
+      minChunks: 1,
+      maxAsyncRequests: 5,
+      maxInitialRequests: 3,
+      automaticNameDelimiter: '~',
+      automaticNameMaxLength: 30,
+      name: true,
+      cacheGroups: {
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          filename: '[name].bundle.js',
+          priority: -10
+        },
+        default: {
+          minChunks: 2,
+          priority: -20,
+          reuseExistingChunk: true
+        }
+      }
+    }
+  },
   plugins: [
+    new WriteFilePlugin(),
     new CopyWebpackPlugin([
+      {
+        from: resolve(__dirname, config.copy.all.src),
+        to: resolve(__dirname, './dist/'),
+      },
       {
         from: resolve(__dirname, config.copy.html.src),
         to: resolve(__dirname, config.copy.html.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.fonts.src),
-        to: resolve(__dirname, config.copy.fonts.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.images.src),
-        to: resolve(__dirname, config.copy.images.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.models.src),
-        to: resolve(__dirname, config.copy.models.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.textures.src),
-        to: resolve(__dirname, config.copy.textures.dest),
       },
     ]),
 
@@ -130,13 +158,16 @@ module.exports = {
     // new ExtractTextPlugin('styles.css')
     // export css to separate file
 
-    new webpack.optimize.CommonsChunkPlugin({
-      name: 'vendor',
-      filename: 'vendor.js',
-      minChunks: (module) => {
-        // this assumes your vendor imports exist in the node_modules directory
-        return module.context && module.context.indexOf('node_modules') !== -1;
-      },
-    }),
+    new webpack.ProvidePlugin({
+      $: 'jquery',
+      jQuery: 'jquery',
+      'window.jQuery': 'jquery',
+      THREE: 'three',
+      'window.THREE': 'three',
+      TWEEN: 'tween.js',
+      'window.TWEEN': 'tween.js',
+      React: 'react',
+      _: 'lodash',
+    })
   ],
 };

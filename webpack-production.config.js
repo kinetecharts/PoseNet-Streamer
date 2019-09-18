@@ -1,6 +1,7 @@
 const webpack = require('webpack');
 const { resolve } = require('path');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const WriteFilePlugin = require('write-file-webpack-plugin');
 
 const config = require('./server/config.js');
 
@@ -25,17 +26,13 @@ module.exports = {
         test: /\.(js|jsx)$/,
         exclude: /(node_modules|bower_components)/,
         use: {
-          loader: 'babel-loader',
-          options: {
-            presets: ['env'],
-          },
-        },
+          loader: "babel-loader"
+        }
       },
       {
         test: /\.css$/,
         loader: 'style-loader',
-			},
-			{
+      }, {
         test: /\.css$/,
         loader: 'css-loader',
       },
@@ -65,57 +62,63 @@ module.exports = {
 	resolve: {
 		extensions: ['.js', '.jsx', '.css'],
 	},
-	plugins: [
-		new CopyWebpackPlugin([
+	optimization: {
+    splitChunks: {
+      chunks: 'async',
+      minSize: 30000,
+      maxSize: 0,
+      minChunks: 1,
+      maxAsyncRequests: 5,
+      maxInitialRequests: 3,
+      automaticNameDelimiter: '~',
+      automaticNameMaxLength: 30,
+      name: true,
+      cacheGroups: {
+        vendors: {
+          test: /[\\/]node_modules[\\/]/,
+          filename: '[name].bundle.js',
+          priority: -10
+        },
+        default: {
+          minChunks: 2,
+          priority: -20,
+          reuseExistingChunk: true
+        }
+      }
+    }
+  },
+  plugins: [
+    new WriteFilePlugin(),
+    new CopyWebpackPlugin([
+      {
+        from: resolve(__dirname, config.copy.all.src),
+        to: resolve(__dirname, './dist/'),
+      },
       {
         from: resolve(__dirname, config.copy.html.src),
         to: resolve(__dirname, config.copy.html.dest),
       },
-      {
-        from: resolve(__dirname, config.copy.fonts.src),
-        to: resolve(__dirname, config.copy.fonts.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.images.src),
-        to: resolve(__dirname, config.copy.images.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.models.src),
-        to: resolve(__dirname, config.copy.models.dest),
-      },
-      {
-        from: resolve(__dirname, config.copy.textures.src),
-        to: resolve(__dirname, config.copy.textures.dest),
-      },
     ]),
 
-    new webpack.optimize.CommonsChunkPlugin({
-      name: 'vendor',
-      filename: 'vendor.js',
-      minChunks: (module) => {
-        // this assumes your vendor imports exist in the node_modules directory
-        return module.context && module.context.indexOf('node_modules') !== -1;
-      },
-    }),
-		new webpack.DefinePlugin({
-		  'process.env': {
-		    NODE_ENV: JSON.stringify('production')
-		  }
-		}),
-		new webpack.LoaderOptionsPlugin({
-		  minimize: true,
-		  debug: false
-		}),
-		// new webpack.optimize.UglifyJsPlugin({
-		//   beautify: false,
-		//   mangle: {
-		//     screw_ie8: false,
-		//     keep_fnames: true
-		//   },
-		//   compress: {
-		//     screw_ie8: false
-		//   },
-		//   comments: false
-		// })
-	]
+    new webpack.HotModuleReplacementPlugin(),
+    // enable HMR globally
+
+    new webpack.NamedModulesPlugin(),
+    // prints more readable module names in the browser console on HMR updates
+
+    // new ExtractTextPlugin('styles.css')
+    // export css to separate file
+
+    new webpack.ProvidePlugin({
+      $: 'jquery',
+      jQuery: 'jquery',
+      'window.jQuery': 'jquery',
+      THREE: 'three',
+      'window.THREE': 'three',
+      TWEEN: 'tween.js',
+      'window.TWEEN': 'tween.js',
+      React: 'react',
+      _: 'lodash',
+    })
+  ],
 }

@@ -19,12 +19,15 @@ class PoseNet {
     document.getElementsByClassName('bm-item-list')[0].appendChild(d);
   }
 
-  initPosenet() {
+  initPosenet(input) {
     return new Promise((resolve) => {
-      posenet.load(this.guiState.input.mobileNetArchitecture).then((posenet) => {
+      posenet.load(
+        input
+        ).then((posenet) => {
         resolve(posenet);
       });
-    });
+    })
+    .catch(function(error) { console.error(error); });
   }
 
   updatePoseNet(newProps, newMedia) {
@@ -44,38 +47,46 @@ class PoseNet {
     this.predictions = document.getElementById('predictions');
     this.video = document.createElement('video');
 
-    this.initPosenet().then((p) => {
-      this.posenet = p;
-      this.color = '#' + ((1<<24)*Math.random()|0).toString(16);
+    this.initPosenet(this.guiState.architecture === 'MobileNetV1' ? this.guiState.inputMobileNetV1 : this.guiState.inputResNet50)
+      .then((p) => {
+        this.posenet = p;
+        this.color = '#ffffff';// + ((1<<24)*Math.random()|0).toString(16);
 
-      navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          deviceId: {
-            exact: _.filter(this.media.devices, (device) => {
-              return device.label === this.media.camera;
-            })[0].deviceId,
+      if (navigator.mediaDevices) {
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            deviceId: {
+              exact: _.filter(this.media.devices, (device) => {
+                return device.label === this.media.camera;
+              })[0].deviceId,
+            },
           },
-        },
-      }).then((stream) => {
-        window.stream = stream;
-        this.video.srcObject = stream;
-      
-        this.previewContext = this.preview.getContext('2d');
-        this.predictionsContext = this.predictions.getContext('2d');
+        }).then((stream) => {
+          window.stream = stream;
+          this.video.srcObject = stream;
 
-        this.video.addEventListener('canplay', () => {
-          this.preview.width = this.video.videoWidth;
-          this.preview.height = this.video.videoHeight;
-          this.predictions.width = this.video.videoWidth;
-          this.predictions.height = this.video.videoHeight;
-          this.grabFrame();
-          this.detect();
-        });
+        
+          this.previewContext = this.preview.getContext('2d');
+          this.predictionsContext = this.predictions.getContext('2d');
 
-        this.video.play();
-        this.setupFPS();
-      });
+          this.video.onloadedmetadata = (e) => {
+            this.video.addEventListener('canplay', () => {
+              this.preview.width = this.video.videoWidth;
+              this.preview.height = this.video.videoHeight;
+              this.predictions.width = this.video.videoWidth;
+              this.predictions.height = this.video.videoHeight;
+              this.grabFrame();
+              this.detect();
+            });
+
+            this.video.play();
+          };
+          
+          this.setupFPS();
+        })
+        .catch(function(error) { console.error(error); });
+      }
     });
   }
 
@@ -100,18 +111,18 @@ class PoseNet {
       ctx.restore(); // Restore the last saved state
   }
 
-  detect() {
-    this.predictionsContext.clearRect(0, 0, this.predictions.width, this.predictions.height);
+  async detect() {
     if (this.guiState.algorithm == 'Multiple') {
-      this.multiplePoses();
+      await this.multiplePoses(this.guiState.architecture === 'MobileNetV1' ? this.guiState.inputMobileNetV1 : this.guiState.inputResNet50);
     } else {
-      this.singlePose();
+      await this.singlePose(this.guiState.architecture === 'MobileNetV1' ? this.guiState.inputMobileNetV1 : this.guiState.inputResNet50);
     }
     requestAnimationFrame(this.detect.bind(this));
   }
 
   drawPose(pose, confidence) {
     this.stats.begin();
+    this.predictionsContext.clearRect(0, 0, this.predictions.width, this.predictions.height);
     if (this.guiState.output.showBoundingbox) {
       this.drawBoundingBox(this.predictionsContext, pose.keypoints, this.color);
     }
@@ -124,44 +135,46 @@ class PoseNet {
     this.stats.end();
   }
 
-  multiplePoses() {
-    this.posenet.estimateMultiplePoses(
+  async multiplePoses(input) {
+    await this.posenet.estimateMultiplePoses(
       this.preview,
-      this.guiState.input.imageScaleFactor,
-      false,
-      this.guiState.input.outputStride,
-      this.guiState.multiPoseDetection.maxPoseDetections,
-      this.guiState.multiPoseDetection.minPartConfidence,
-      this.guiState.multiPoseDetection.nmsRadius,
+      {
+        flipHorizontal: this.guiState.multiPoseDetection.maxPoseDetections,
+        maxDetections: this.guiState.multiPoseDetection.maxPoseDetections,
+        scoreThreshold: this.guiState.multiPoseDetection.scoreThreshold,
+        nmsRadius: this.guiState.multiPoseDetection.nmsRadius,
+      }
     ).then((poses) => {
-      this.broadcastPoses(poses, this.guiState.singlePoseDetection.minPartConfidence);
-      poses.forEach(pose => this.drawPose(pose, this.guiState.multiPoseDetection.minPartConfidence));
+      this.broadcastPoses(poses, this.guiState.multiPoseDetection.minPoseConfidence);
+      poses.forEach(pose => this.drawPose(pose, this.guiState.multiPoseDetection.minPoseConfidence));
     });
   }
 
-  singlePose() {
-    this.posenet.estimateSinglePose(
+  async singlePose(input) {
+    await this.posenet.estimateSinglePose(
       this.preview,
-      this.guiState.input.imageScaleFactor,
+      input.imageScaleFactor,
       false,
-      this.guiState.input.outputStride,
+      input.outputStride,
     ).then((pose) => {
-      this.broadcastPoses(pose, this.guiState.singlePoseDetection.minPartConfidence);
-      this.drawPose(pose, this.guiState.singlePoseDetection.minPartConfidence);
+      this.broadcastPoses([pose], this.guiState.singlePoseDetection.minPoseConfidence);
+      // this.drawPose(pose, this.guiState.singlePoseDetection.minPoseConfidence);
+      [pose].forEach(pose => this.drawPose(pose, this.guiState.multiPoseDetection.minPoseConfidence));
     });
   }
 
   drawKeypoints(context, keypoints, minConfidence, color) {
+    // debugger;
     keypoints.forEach((keypoint) => {
       if (keypoint.score < minConfidence) {
         return;
       }
-
       const { y, x } = keypoint.position;
       context.beginPath();
       context.arc(x, y, 3, 0, 2 * Math.PI);
       context.fillStyle = color;
       context.fill();
+      context.stroke();
     });
   }
 
